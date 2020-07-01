@@ -1,0 +1,43 @@
+name: Test & deploy a serverless function to GCP Cloud Functions
+
+on: push
+
+jobs:
+  Test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.7]
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@master
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v1
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip 
+      - name: Install dependencies
+        run: pip install functions-framework requests
+      - name: Make test script executable
+        run: chmod +x teslafi_watch_function_test.sh     
+      - name: Execute test script
+        env:
+          TESLAFI_TEST_TOKEN: ${{ secrets.TESLAFI_TEST_TOKEN }}
+        run: ./teslafi_watch_function_test.sh $TESLAFI_TEST_TOKEN
+  
+  Deploy:
+    needs: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@master
+      - name: Setup Google Cloud SDK
+        uses: GoogleCloudPlatform/github-actions/setup-gcloud@master
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+      - name: Verify gcloud command is working
+        run: gcloud info
+      - name: Deploy new version of the GCP Cloud Function
+        run: gcloud functions deploy ${{ secrets.GCP_FUNCTION_NAME }} --entry-point request_handler --source ./ --trigger-http --runtime python37
